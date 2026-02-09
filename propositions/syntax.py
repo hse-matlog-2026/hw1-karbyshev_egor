@@ -113,15 +113,13 @@ class Formula:
         if is_variable(self.root) or is_constant(self.root):
             return self.root
         elif is_unary(self.root):
-            first_str = self.first.__repr__()
-            if is_variable(self.first.root) or is_constant(self.first.root):
-                return self.root + first_str
+            first_repr = repr(self.first)
+            if is_variable(self.first.root) or is_constant(self.first.root) or is_unary(self.first.root):
+                return self.root + first_repr
             else:
-                return self.root + '(' + first_str + ')'
+                return self.root + '(' + first_repr + ')'
         else:
-            first_str = self.first.__repr__()
-            second_str = self.second.__repr__()
-            return '(' + first_str + self.root + second_str + ')'
+            return '(' + repr(self.first) + self.root + repr(self.second) + ')'
 
     def __eq__(self, other: object) -> bool:
         """Compares the current formula with the given one.
@@ -208,14 +206,16 @@ class Formula:
         if not string:
             return None, "Empty string"
         
-        for i in range(1, len(string) + 1):
-            if is_variable(string[:i]):
-                return Formula(string[:i]), string[i:]
+        if string[0].isalpha() and 'p' <= string[0] <= 'z':
+            i = 1
+            while i < len(string) and string[i].isdigit():
+                i += 1
+            var = string[:i]
+            if is_variable(var):
+                return Formula(var), string[i:]
         
-        if string[0] == 'T':
-            return Formula('T'), string[1:]
-        elif string[0] == 'F':
-            return Formula('F'), string[1:]
+        if string[0] in ('T', 'F'):
+            return Formula(string[0]), string[1:]
         
         if string[0] == '~':
             formula, rest = Formula._parse_prefix(string[1:])
@@ -226,30 +226,25 @@ class Formula:
         if string[0] == '(':
             first, after_first = Formula._parse_prefix(string[1:])
             if first is None:
-                return None, "Invalid first operand in binary formula"
+                return None, "Invalid first operand"
             
             op_start = len(string) - len(after_first)
-            op_end = op_start
-            while op_end < len(string) and not is_binary(string[op_start:op_end+1]):
-                op_end += 1
+            for op_len in [1, 2]:
+                if op_start + op_len <= len(string):
+                    op = string[op_start:op_start + op_len]
+                    if is_binary(op):
+                        second, after_second = Formula._parse_prefix(string[op_start + op_len:])
+                        if second is None:
+                            return None, "Invalid second operand"
+                        
+                        if not after_second.startswith(')'):
+                            return None, "Missing closing parenthesis"
+                        
+                        return Formula(op, first, second), after_second[1:]
             
-            if op_end >= len(string):
-                return None, "Missing binary operator"
-            
-            op = string[op_start:op_end+1]
-            if not is_binary(op):
-                return None, f"Invalid binary operator: {op}"
-            
-            second, after_second = Formula._parse_prefix(string[op_end+1:])
-            if second is None:
-                return None, "Invalid second operand in binary formula"
-            
-            if not after_second.startswith(')'):
-                return None, "Missing closing parenthesis"
-            
-            return Formula(op, first, second), after_second[1:]
+            return None, "Missing binary operator"
         
-        return None, f"Invalid formula prefix starting with: {string[0]}"
+        return None, "Invalid formula"
 
     @staticmethod
     def is_formula(string: str) -> bool:
@@ -264,9 +259,7 @@ class Formula:
         """
         # Task 1.5
         formula, rest = Formula._parse_prefix(string)
-        if formula is None:
-            return False
-        return rest == ""
+        return formula is not None and rest == ""
         
     @staticmethod
     def parse(string: str) -> Formula:
@@ -308,32 +301,36 @@ class Formula:
             A formula whose polish notation representation is the given string.
         """
         # Optional Task 1.8
-        def parse_recursive(s: str, start: int) -> Tuple[Formula, int]:
-            for i in range(start + 1, len(s) + 1):
-                if is_variable(s[start:i]):
-                    return Formula(s[start:i]), i
+        def parse_prefix(s: str) -> Tuple[Formula, str]:
+            if not s:
+                raise ValueError("Empty string")
             
-            if s[start] == 'T':
-                return Formula('T'), start + 1
-            elif s[start] == 'F':
-                return Formula('F'), start + 1
+            if s[0].isalpha() and 'p' <= s[0] <= 'z':
+                i = 1
+                while i < len(s) and s[i].isdigit():
+                    i += 1
+                var = s[:i]
+                if is_variable(var):
+                    return Formula(var), s[i:]
             
-            if s[start] == '~':
-                subformula, new_index = parse_recursive(s, start + 1)
-                return Formula('~', subformula), new_index
+            if s[0] in ('T', 'F'):
+                return Formula(s[0]), s[1:]
             
-            operators = ['&', '|', '->']
-            for op in operators:
-                if s.startswith(op, start):
-                    left, idx1 = parse_recursive(s, start + len(op))
-                    right, idx2 = parse_recursive(s, idx1)
-                    return Formula(op, left, right), idx2
+            if s[0] == '~':
+                subformula, rest = parse_prefix(s[1:])
+                return Formula('~', subformula), rest
             
-            raise ValueError(f"Invalid polish notation at position {start}")
+            for op in ['->', '&', '|']:
+                if s.startswith(op):
+                    left, rest1 = parse_prefix(s[len(op):])
+                    right, rest2 = parse_prefix(rest1)
+                    return Formula(op, left, right), rest2
+            
+            raise ValueError("Invalid polish notation")
         
-        formula, end_pos = parse_recursive(string, 0)
-        if end_pos != len(string):
-            raise ValueError(f"Extra characters after formula: {string[end_pos:]}")
+        formula, rest = parse_prefix(string)
+        if rest:
+            raise ValueError(f"Extra characters: {rest}")
         return formula
 
     def substitute_variables(self, substitution_map: Mapping[str, Formula]) -> \
