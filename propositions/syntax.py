@@ -204,7 +204,7 @@ class Formula:
         """
         # Task 1.4
         if not string:
-            return None, "Empty string"
+            return None, "Invalid formula"
         
         if string[0].isalpha() and 'p' <= string[0] <= 'z':
             i = 1
@@ -213,6 +213,8 @@ class Formula:
             var = string[:i]
             if is_variable(var):
                 return Formula(var), string[i:]
+            else:
+                return None, "Invalid formula"
         
         if string[0] in ('T', 'F'):
             return Formula(string[0]), string[1:]
@@ -220,13 +222,13 @@ class Formula:
         if string[0] == '~':
             formula, rest = Formula._parse_prefix(string[1:])
             if formula is None:
-                return None, "Invalid operand for unary operator"
+                return None, "Invalid formula"
             return Formula('~', formula), rest
         
         if string[0] == '(':
             first, after_first = Formula._parse_prefix(string[1:])
             if first is None:
-                return None, "Invalid first operand"
+                return None, "Invalid formula"
             
             op_start = len(string) - len(after_first)
             for op_len in [1, 2]:
@@ -235,14 +237,14 @@ class Formula:
                     if is_binary(op):
                         second, after_second = Formula._parse_prefix(string[op_start + op_len:])
                         if second is None:
-                            return None, "Invalid second operand"
+                            return None, "Invalid formula"
                         
                         if not after_second.startswith(')'):
-                            return None, "Missing closing parenthesis"
+                            return None, "Invalid formula"
                         
                         return Formula(op, first, second), after_second[1:]
             
-            return None, "Missing binary operator"
+            return None, "Invalid formula"
         
         return None, "Invalid formula"
 
@@ -312,6 +314,8 @@ class Formula:
                 var = s[:i]
                 if is_variable(var):
                     return Formula(var), s[i:]
+                else:
+                    raise ValueError("Invalid variable")
             
             if s[0] in ('T', 'F'):
                 return Formula(s[0]), s[1:]
