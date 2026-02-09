@@ -113,11 +113,7 @@ class Formula:
         if is_variable(self.root) or is_constant(self.root):
             return self.root
         elif is_unary(self.root):
-            first_repr = repr(self.first)
-            if is_variable(self.first.root) or is_constant(self.first.root) or is_unary(self.first.root):
-                return self.root + first_repr
-            else:
-                return self.root + '(' + first_repr + ')'
+            return self.root + repr(self.first)
         else:
             return '(' + repr(self.first) + self.root + repr(self.second) + ')'
 
@@ -205,7 +201,7 @@ class Formula:
         # Task 1.4
         if not string:
             return None, "Invalid formula"
-        
+
         if string[0].isalpha() and 'p' <= string[0] <= 'z':
             i = 1
             while i < len(string) and string[i].isdigit():
@@ -215,37 +211,44 @@ class Formula:
                 return Formula(var), string[i:]
             else:
                 return None, "Invalid formula"
-        
+
         if string[0] in ('T', 'F'):
             return Formula(string[0]), string[1:]
-        
+
         if string[0] == '~':
             formula, rest = Formula._parse_prefix(string[1:])
             if formula is None:
                 return None, "Invalid formula"
             return Formula('~', formula), rest
-        
+
         if string[0] == '(':
-            first, after_first = Formula._parse_prefix(string[1:])
+            first, rest1 = Formula._parse_prefix(string[1:])
             if first is None:
                 return None, "Invalid formula"
-            
-            op_start = len(string) - len(after_first)
-            for op_len in [1, 2]:
-                if op_start + op_len <= len(string):
-                    op = string[op_start:op_start + op_len]
-                    if is_binary(op):
-                        second, after_second = Formula._parse_prefix(string[op_start + op_len:])
-                        if second is None:
-                            return None, "Invalid formula"
-                        
-                        if not after_second.startswith(')'):
-                            return None, "Invalid formula"
-                        
-                        return Formula(op, first, second), after_second[1:]
-            
-            return None, "Invalid formula"
-        
+
+            op = None
+            op_len = 0
+            if rest1.startswith('->'):
+                op = '->'
+                op_len = 2
+            elif rest1.startswith('&'):
+                op = '&'
+                op_len = 1
+            elif rest1.startswith('|'):
+                op = '|'
+                op_len = 1
+            else:
+                return None, "Invalid formula"
+
+            second, rest2 = Formula._parse_prefix(rest1[op_len:])
+            if second is None:
+                return None, "Invalid formula"
+
+            if not rest2.startswith(')'):
+                return None, "Invalid formula"
+
+            return Formula(op, first, second), rest2[1:]
+
         return None, "Invalid formula"
 
     @staticmethod
